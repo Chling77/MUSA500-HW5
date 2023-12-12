@@ -1,0 +1,107 @@
+---
+  title: 'MUSA500 Homework 5: kMEANS CLUSTER  '
+author: "Ling Chen, Hang Zhao, Jiahang Li"
+date: "2023-12-12"
+output:
+  html_document:
+  toc: yes
+toc_float: yes
+code_folding: hide
+number_sections: yes
+code_download: no
+theme: united
+highlight: espresso
+pdf_document:
+  toc: yes
+editor_options:
+  markdown:
+  wrap: 72
+---
+  
+  ```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+```{r setup2, include=FALSE, echo=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set()
+
+library(tidyr)
+library(dplyr)
+library(DAAG)
+library(car)  #to calculate VIF
+library(MASS)
+library(rsq)
+library(tidyverse) #for ggplot
+library(sf) #for maps
+library(cowplot) #for plotgrid
+#library(classInt)#for jenks breaks
+library(ggplot2)
+library(RColorBrewer)
+#library(broom)
+library(r2symbols)
+#library(lattice)
+library(corrplot)
+library(NbClust)
+library(flexclust)
+setwd("C:/Users/jiahangl/OneDrive - PennO365/data mining/A5")
+
+knitr::opts_chunk$set(echo = TRUE)
+
+options(scipen=999)
+
+options(scipen=999)
+
+data <- read.csv("C:/Users/jiahangl/OneDrive - PennO365/data mining/A1/RegressionData.csv")
+head(data)
+
+source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
+
+palette5 <- c("#AED6F1","#85C1E9","#3498DB","#2874A6","#1B4F72")
+
+```
+
+```{r, warning = FALSE, message = FALSE}
+newqBr <- function(df, variable, rnd) {
+  if (missing(rnd)) {
+    as.character(quantile(round(df[[variable]],4),
+                          c(.01,.2,.4,.6,.8), na.rm=T))
+  } else if (rnd == FALSE | rnd == F) {
+    as.character(formatC(quantile(df[[variable]],
+                                  c(.01,.2,.4,.6,.8), na.rm=T),
+                         digits = 3))
+  }
+}
+```
+
+
+```{r, warning = FALSE, message = FALSE}
+#Determine the number of clusters
+wss <- (nrow(data)-1)*sum(apply(data,2,var))
+for (i in 2:20)wss[i] <- sum(kmeans(data,centers=i)$withinss)
+plot(1:20,wss,type="b",xlab="Number of Clusters",ylab="Within groups sum of squares")
+set.seed(1234)
+nc <- NbClust(data,min.nc=2,max.nc=15,method="kmeans",index="all")
+table
+```
+```{r, warning = FALSE, message = FALSE}
+table(nc$Best.n[1,])
+barplot(table(nc$Best.n[1,]),xlab="Number of Clusters", ylab="Number of Criteria",main="Numebr of Clusters Chosen by 26 Criteria")
+```
+```{r, warning = FALSE, message = FALSE}
+set.seed(1234)
+fit.km <- kmeans(data,4,nstart=25)
+fit.km$size
+#barplot(table(nc$Best.n[1,]),xlab="Number of Clusters", ylab="Number of Criteria",main="Numebr of Clusters Chosen by 26 Criteria")
+```
+```{r, warning = FALSE, message = FALSE}
+round(aggregate(data[-2:-1],by=list(cluster=fit.km$cluster),mean),1)
+```
+
+```{r, warning = FALSE, message = FALSE}
+k <- 4
+kmeans_result <- kmeans(data[, -1], centers = 4)
+data$cluster_ID <- kmeans_result$cluster
+write.csv(data, "new_data_withclustergroup.csv", row.names = FALSE)
+```
