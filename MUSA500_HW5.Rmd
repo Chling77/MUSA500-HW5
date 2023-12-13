@@ -1,0 +1,105 @@
+---
+title: 'MUSA500 Homework 5: K-Means Cluster'
+author: "Ling Chen, Hang Zhao, Jiahang Li"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: true
+    latex_engine: xelatex
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    number_sections: true
+    code_download: true
+    theme: united
+    highlight: espresso
+editor_options:
+  markdown:
+    wrap: 72
+---
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+options(scipen=999)
+```
+
+```{r setup2, include=FALSE, echo=FALSE, message=FALSE, warning=FALSE}
+library(NbClust)
+library(flexclust)
+library(dplyr)
+library(sf)
+library(ggplot2)
+
+#setwd("C:/Users/jiahangl/OneDrive - PennO365/data mining/A5")
+#data <- read.csv("C:/Users/jiahangl/OneDrive - PennO365/data mining/A1/RegressionData.csv")
+
+data <- read.csv("RegressionData.csv")
+df <- data.frame(scale(data[-1:-1]))
+head(df)
+#palette5 <- c("#AED6F1","#85C1E9","#3498DB","#2874A6","#1B4F72")
+
+```
+
+```{r, warning = FALSE, message = FALSE}
+#Determine the number of clusters
+wss <- (nrow(df)-1)*sum(apply(df,2,var))
+for (i in 2:20) wss[i] <- sum(kmeans(df, centers=i)$withinss)
+plot(1:20, wss, type="b", xlab="Number of Clusters",
+     ylab="Within groups sum of squares")
+```
+
+```{r, warning = FALSE, message = FALSE}
+set.seed(1234)
+nc <- NbClust(df,min.nc=2,max.nc=15,method="kmeans",index="all")
+table
+table(nc$Best.n[1,])
+barplot(table(nc$Best.n[1,]),xlab="Number of Clusters", ylab="Number of Criteria",main="Numebr of Clusters Chosen by 26 Criteria")
+```
+
+```{r, warning = FALSE, message = FALSE}
+set.seed(1234)
+fit.km <- kmeans(df,4,nstart=25)
+fit.km$size
+```
+
+```{r warning=FALSE, message=FALSE, cache=FALSE}
+round(fit.km$centers, 2)
+fit.km$cluster
+```
+
+```{r, warning = FALSE, message = FALSE}
+cbind(round(aggregate(data[-1:-1], by=list(cluster=fit.km$cluster), mean),1),fit.km$size)
+```
+
+```{r warning=FALSE, message=FALSE, cache=FALSE}
+data$cluster_ID <- fit.km$cluster
+write.csv(data, "clustered_data.csv", row.names = FALSE)
+```
+
+## Merging csv to shp data & Mapping
+
+```{r warning=FALSE, message=FALSE, cache=FALSE}
+shp <- st_read("Lecture 1 - Projected Data/Regression Data.shp")
+```
+
+```{r warning=FALSE, message=FALSE, cache=FALSE}
+shp <- shp %>% select(-c(6:14))
+```
+
+
+```{r warning=FALSE, message=FALSE, cache=FALSE}
+merged <- merge(shp, data, by = "POLY_ID")
+```
+
+```{r}
+str(merged)
+```
+
+```{r}
+ggplot() +
+    geom_sf(data = merged, aes(fill = cluster_ID))
+```
+
