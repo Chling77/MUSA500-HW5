@@ -26,12 +26,16 @@ knitr::opts_chunk$set(echo = TRUE,
 options(scipen=999)
 ```
 
+# Result
 ```{r setup2, include=FALSE, echo=FALSE, message=FALSE, warning=FALSE}
 library(NbClust)
 library(flexclust)
 library(dplyr)
 library(sf)
 library(ggplot2)
+library(RColorBrewer)
+library(classInt)
+library(cowplot)
 
 #setwd("C:/Users/jiahangl/OneDrive - PennO365/data mining/A5")
 #data <- read.csv("C:/Users/jiahangl/OneDrive - PennO365/data mining/A1/RegressionData.csv")
@@ -61,7 +65,7 @@ barplot(table(nc$Best.n[1,]),xlab="Number of Clusters", ylab="Number of Criteria
 
 ```{r, warning = FALSE, message = FALSE}
 set.seed(1234)
-fit.km <- kmeans(df,4,nstart=25)
+fit.km <- kmeans(df,3,nstart=25)
 fit.km$size
 ```
 
@@ -79,27 +83,77 @@ data$cluster_ID <- fit.km$cluster
 write.csv(data, "clustered_data.csv", row.names = FALSE)
 ```
 
-## Merging csv to shp data & Mapping
+## Merging csv to shape file & Mapping
+
+The map illustrates Philadelphia's blocks distinctly categorized into three colors: red, yellow, and green, which also demonstrate a generally obvious clustering pattern among various groups, although there are a few blocks scattered across Philadelphia that deviate from this pattern. K-means cluster membership variable seem to be spatial autocorrelated. This is because K-means inherently creates clusters where neighboring blocks are more likely to share similarities, reinforcing the presence of spatial autocorrelation within the clustering process. 
 
 ```{r warning=FALSE, message=FALSE, cache=FALSE}
+# read the original shape file
 shp <- st_read("Lecture 1 - Projected Data/Regression Data.shp")
 ```
 
 ```{r warning=FALSE, message=FALSE, cache=FALSE}
+# delete the duplicate columns in advance
 shp <- shp %>% select(-c(6:14))
 ```
 
-
 ```{r warning=FALSE, message=FALSE, cache=FALSE}
+# merge on the common column "POLY_ID"
 merged <- merge(shp, data, by = "POLY_ID")
 ```
 
-```{r}
-str(merged)
-```
-
-```{r}
+```{r warning=FALSE, message=FALSE, cache=FALSE}
+# plot the map
 ggplot() +
-    geom_sf(data = merged, aes(fill = cluster_ID))
+  geom_sf(data = merged, aes(fill = cluster_ID)) +
+  scale_fill_distiller(palette = "RdYlGn")
+```
+To better compare the clustering map with the original dataset variables, we plot the five maps showing median house value (MEDHVAL), median house income (MEDHHINC), percentage of bachelor's degree (PCTBACHMOR), percentage of single household (PCTSINGLES), and percentage of vacant housing (PCTVACANT), which are shown below: 
+
+```{r warning=FALSE, message=FALSE, cache=FALSE}
+breaks <- classIntervals(c(min(merged$MEDHVAL), merged$MEDHVAL), n=3, style = "quantile")
 ```
 
+```{r warning=FALSE, message=FALSE, cache=FALSE}
+mutated <- mutate(merged, MEDHVAL_cut = cut(MEDHVAL, breaks$brks))
+mutated$val_cutted <- cut(mutated$MEDHVAL, breaks = quantile(mutated$MEDHVAL, probs = 0:3 / 3), labels = c("Low", "Medium", "High"))
+map1 <- ggplot() +
+  geom_sf(data = mutated, aes(fill = val_cutted)) + 
+  scale_fill_manual(values = c("#1a9641", "#ffffb2", "#d7191c"))
+
+merged$inc_cutted <- cut(merged$MEDHHINC, breaks = quantile(merged$MEDHHINC, probs = 0:3 / 3), labels = c("Low", "Medium", "High"))
+map2 <- ggplot() +
+  geom_sf(data = merged, aes(fill = inc_cutted)) +
+  scale_fill_manual(values = c("#1a9641", "#ffffb2", "#d7191c"))
+
+merged$mor_cutted <- cut(merged$PCTBACHMOR, breaks = quantile(merged$PCTBACHMOR, probs = 0:3 / 3), include.lowest = TRUE, labels = c("Low", "Medium", "High"))
+map3 <- ggplot() +
+  geom_sf(data = merged, aes(fill = mor_cutted)) +
+  scale_fill_manual(values = c("#1a9641", "#ffffb2", "#d7191c"))
+
+merged$sin_cutted <- cut(merged$PCTSINGLES, breaks = quantile(merged$PCTSINGLES, probs = 0:3 / 3), include.lowest = TRUE, labels = c("Low", "Medium", "High"))
+map4 <- ggplot() +
+  geom_sf(data = merged, aes(fill = sin_cutted)) +
+  scale_fill_manual(values = c("#1a9641", "#ffffb2", "#d7191c"))
+
+merged$vac_cutted <- cut(merged$PCTVACANT, breaks = quantile(merged$PCTVACANT, probs = 0:3 / 3), include.lowest = TRUE, labels = c("Low", "Medium", "High"))
+map5 <- ggplot() +
+  geom_sf(data = merged, aes(fill = vac_cutted)) +
+  scale_fill_manual(values = c("#1a9641", "#ffffb2", "#d7191c"))
+
+map1
+```
+
+```{r echo=FALSE, fig.height=12, fig.width=16}
+plot_grid(map2, map3, map4, map5, 
+          align = c("hv","hv","hv","hv"), 
+          ncol = 2, nrow = 2)
+```
+
+Looking at those maps together, a clear correlation emerges between the clustering patterns and the four variables: median house value, median house income, percentage of getting Bachelor's degree, percentage of vacant housing, where the cluster group 3 includes the blocks having high median house value, high median house income, high percentage of getting Bachelor's degree, low percentage of vacant household, and cluster group 1 includes the blocks having low median house value and income, low percentage of having Bachelor's degree, high percentage of vacant household. As for the percentage of single housing, it does not exhibit a consistent pattern in relation to the cluster groups and is spread throughout the city. Therefore, no associations or cluster reasoning can be found. 
+
+The name for the cluster generally might be: 1 for *'Economically Accessible Housing'*, 2 for *'Middle-Class Housing'*, and 3 for *'Upscale Residential Housing'*. 
+
+# Discussion
+
+In conclusion, we performed clustering method, a set of data-driven partitioning techniques designed to group a collection of objects into clusters, on a dataset of five variables: MEDHVAL, MEDHHINC, PCTBACHMOR, PCTSINGLES, PCTVACANT. This method, similar to unsupervised learning, does not include any information about number of clusters and class label a priori. Looking at the scree plot, we decided to choose 3 as the number of clusters. After conducting the k-means clustering, each row of data was assigned a number of cluster (e.g. 1, 2, or 3), where each cluster share strong association or similarity between members of the same cluster (e.g. high median house value). From the map, similar patterns can be observed between the cluster map and the MEDHVAL, MEDHHINC, PCTBACHMOR maps, and is inversely similar to the PCTVACANT map. However, no obvious association can be seen for PCTSINGLES, as it is more random and is not a factor that strongly related to housing values. 
